@@ -741,17 +741,29 @@ async function sendSubagentAnnounceDirectly(params: {
         path: "none",
       };
     }
+    // Only request external delivery when we have a deliverable channel.
+    // When the requester is on webchat (internal), directOrigin.channel is
+    // stripped by resolveAnnounceOrigin. Setting deliver=true without a
+    // channel causes a hard failure in the gateway when multiple external
+    // channels are configured (e.g. telegram + slack). In that case we
+    // just inject the message into the session — the webchat client
+    // receives it via its websocket connection automatically.
+    const hasDeliverableChannel =
+      !params.requesterIsSubagent &&
+      typeof directOrigin?.channel === "string" &&
+      directOrigin.channel !== "" &&
+      isDeliverableMessageChannel(directOrigin.channel);
     await callGateway({
       method: "agent",
       params: {
         sessionKey: canonicalRequesterSessionKey,
         message: params.triggerMessage,
-        deliver: !params.requesterIsSubagent,
-        bestEffortDeliver: params.bestEffortDeliver,
-        channel: params.requesterIsSubagent ? undefined : directOrigin?.channel,
-        accountId: params.requesterIsSubagent ? undefined : directOrigin?.accountId,
-        to: params.requesterIsSubagent ? undefined : directOrigin?.to,
-        threadId: params.requesterIsSubagent ? undefined : threadId,
+        deliver: hasDeliverableChannel,
+        bestEffortDeliver: hasDeliverableChannel ? params.bestEffortDeliver : undefined,
+        channel: hasDeliverableChannel ? directOrigin?.channel : undefined,
+        accountId: hasDeliverableChannel ? directOrigin?.accountId : undefined,
+        to: hasDeliverableChannel ? directOrigin?.to : undefined,
+        threadId: hasDeliverableChannel ? threadId : undefined,
         idempotencyKey: params.directIdempotencyKey,
       },
       expectFinal: true,
