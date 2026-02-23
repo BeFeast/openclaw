@@ -37,6 +37,8 @@ export type MainSessionExecPolicy = {
   maxExecMs?: number;
   /** Blocklist of command patterns that are rejected in the main session. */
   execBlocklist?: string[];
+  /** Blocklist of tool names that are rejected in the main session. */
+  toolBlocklist?: string[];
 };
 
 export type AgentsConfig = {

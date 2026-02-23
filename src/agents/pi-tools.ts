@@ -537,8 +537,27 @@ export function createOpenClawCodingTools(options?: {
     ? withHooks.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
     : withHooks;
 
+  // ── Main-session tool blocklist enforcement ──────────────────────────
+  const toolBlocklist = mainSessionPolicy?.toolBlocklist;
+  const withToolBlocklist =
+    toolBlocklist && toolBlocklist.length > 0
+      ? withAbort.map((tool) => {
+          if (toolBlocklist.some((blocked) => blocked.toLowerCase() === tool.name.toLowerCase())) {
+            return {
+              ...tool,
+              execute: async () => {
+                throw new Error(
+                  `Tool '${tool.name}' is blocked in main session. Use sessions_spawn to delegate to a sub-agent.`,
+                );
+              },
+            };
+          }
+          return tool;
+        })
+      : withAbort;
+
   // NOTE: Keep canonical (lowercase) tool names here.
   // pi-ai's Anthropic OAuth transport remaps tool names to Claude Code-style names
   // on the wire and maps them back for tool dispatch.
-  return withAbort;
+  return withToolBlocklist;
 }

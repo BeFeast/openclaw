@@ -7,6 +7,7 @@ export const MainSessionExecPolicySchema = z
   .object({
     maxExecMs: z.number().int().positive().optional(),
     execBlocklist: z.array(z.string()).optional(),
+    toolBlocklist: z.array(z.string()).optional(),
   })
   .strict()
   .optional();
