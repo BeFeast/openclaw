@@ -2,6 +2,13 @@ import type { ExecAsk, ExecHost, ExecSecurity } from "../infra/exec-approvals.js
 import type { SafeBinProfileFixture } from "../infra/exec-safe-bin-policy.js";
 import type { BashSandboxConfig } from "./bash-tools.shared.js";
 
+export type MainSessionExecPolicyDefaults = {
+  /** Maximum exec timeout in milliseconds for main session commands. */
+  maxExecMs?: number;
+  /** Command substrings that are blocked in the main session. */
+  execBlocklist?: string[];
+};
+
 export type ExecToolDefaults = {
   host?: ExecHost;
   security?: ExecSecurity;
@@ -24,6 +31,8 @@ export type ExecToolDefaults = {
   notifyOnExit?: boolean;
   notifyOnExitEmptySuccess?: boolean;
   cwd?: string;
+  /** Exec policy for main (interactive) sessions — blocklist + timeout cap. */
+  mainSessionPolicy?: MainSessionExecPolicyDefaults;
 };
 
 export type ExecElevatedDefaults = {

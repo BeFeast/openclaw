@@ -3,10 +3,19 @@ import { AgentDefaultsSchema } from "./zod-schema.agent-defaults.js";
 import { AgentEntrySchema } from "./zod-schema.agent-runtime.js";
 import { TranscribeAudioSchema } from "./zod-schema.core.js";
 
+export const MainSessionExecPolicySchema = z
+  .object({
+    maxExecMs: z.number().int().positive().optional(),
+    execBlocklist: z.array(z.string()).optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentsSchema = z
   .object({
     defaults: z.lazy(() => AgentDefaultsSchema).optional(),
     list: z.array(AgentEntrySchema).optional(),
+    mainSession: MainSessionExecPolicySchema,
   })
   .strict()
   .optional();

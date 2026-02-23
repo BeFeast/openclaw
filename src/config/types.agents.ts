@@ -32,9 +32,18 @@ export type AgentConfig = {
   tools?: AgentToolsConfig;
 };
 
+export type MainSessionExecPolicy = {
+  /** Maximum exec timeout in milliseconds for main session commands. */
+  maxExecMs?: number;
+  /** Blocklist of command patterns that are rejected in the main session. */
+  execBlocklist?: string[];
+};
+
 export type AgentsConfig = {
   defaults?: AgentDefaultsConfig;
   list?: AgentConfig[];
+  /** Exec policy constraints for the main (interactive) session. */
+  mainSession?: MainSessionExecPolicy;
 };
 
 export type AgentBinding = {

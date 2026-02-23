@@ -186,6 +186,7 @@ export function createExecTool(
       `exec: interpreter/runtime binaries in safeBins (${unprofiledInterpreterSafeBins.join(", ")}) are unsafe without explicit hardened profiles; prefer allowlist entries`,
     );
   }
+  const mainSessionPolicy = defaults?.mainSessionPolicy;
   const notifyOnExit = defaults?.notifyOnExit !== false;
   const notifyOnExitEmptySuccess = defaults?.notifyOnExitEmptySuccess === true;
   const notifySessionKey = defaults?.sessionKey?.trim() || undefined;
@@ -220,6 +221,30 @@ export function createExecTool(
 
       if (!params.command) {
         throw new Error("Provide a command to start.");
+      }
+
+      // ── Main-session exec policy enforcement ──────────────────────────
+      if (mainSessionPolicy) {
+        const blocklist = mainSessionPolicy.execBlocklist;
+        if (blocklist && blocklist.length > 0) {
+          const cmd = params.command;
+          const matched = blocklist.find((pattern) => cmd.includes(pattern));
+          if (matched) {
+            throw new Error(
+              `Command blocked by main-session exec policy (matched pattern: "${matched}"). ` +
+                `Spawn a subagent for long-running or heavy commands.`,
+            );
+          }
+        }
+        // Clamp timeout to maxExecMs
+        if (typeof mainSessionPolicy.maxExecMs === "number" && mainSessionPolicy.maxExecMs > 0) {
+          const maxSec = Math.ceil(mainSessionPolicy.maxExecMs / 1000);
+          if (typeof params.timeout === "number" && params.timeout > maxSec) {
+            params.timeout = maxSec;
+          } else if (typeof params.timeout !== "number") {
+            params.timeout = maxSec;
+          }
+        }
       }
 
       const maxOutput = DEFAULT_MAX_OUTPUT;

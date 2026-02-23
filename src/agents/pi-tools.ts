@@ -10,7 +10,7 @@ import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import { resolveMergedSafeBinProfileFixtures } from "../infra/exec-safe-bin-runtime-policy.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
-import { isSubagentSessionKey } from "../routing/session-key.js";
+import { isSubagentSessionKey, isCronSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { createApplyPatchTool } from "./apply-patch.js";
@@ -366,6 +366,14 @@ export function createOpenClawCodingTools(options?: {
     return [tool];
   });
   const { cleanupMs: cleanupMsOverride, ...execDefaults } = options?.exec ?? {};
+  // ── Main-session exec policy: detect interactive main session and resolve policy ──
+  const isMainInteractiveSession =
+    !!options?.sessionKey &&
+    !isSubagentSessionKey(options.sessionKey) &&
+    !isCronSessionKey(options.sessionKey);
+  const mainSessionPolicy = isMainInteractiveSession
+    ? options?.config?.agents?.mainSession
+    : undefined;
   const execTool = createExecTool({
     ...execDefaults,
     host: options?.exec?.host ?? execConfig.host,
@@ -389,6 +397,9 @@ export function createOpenClawCodingTools(options?: {
     notifyOnExit: options?.exec?.notifyOnExit ?? execConfig.notifyOnExit,
     notifyOnExitEmptySuccess:
       options?.exec?.notifyOnExitEmptySuccess ?? execConfig.notifyOnExitEmptySuccess,
+    mainSessionPolicy: mainSessionPolicy
+      ? { maxExecMs: mainSessionPolicy.maxExecMs, execBlocklist: mainSessionPolicy.execBlocklist }
+      : undefined,
     sandbox: sandbox
       ? {
           containerName: sandbox.containerName,
