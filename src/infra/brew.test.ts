@@ -1,8 +1,9 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { resolveBrewExecutable, resolveBrewPathDirs } from "./brew.js";
 
@@ -20,6 +21,29 @@ describe("brew helpers", () => {
       expect(resolveBrewExecutable({ homeDir: tmp, env })).toBe(brewPath);
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers homeDir Linuxbrew over shared /home/linuxbrew", () => {
+    const homeDir = "/tmp/clawdbot-home";
+    const homeBrew = path.join(homeDir, ".linuxbrew", "bin", "brew");
+    const sharedBrew = "/home/linuxbrew/.linuxbrew/bin/brew";
+
+    const accessSyncMock = vi
+      .spyOn(fsSync, "accessSync")
+      .mockImplementation((candidate, mode) => {
+        if (mode !== fsSync.constants.X_OK) {
+          throw new Error(`unexpected mode: ${String(mode)}`);
+        }
+        const value = String(candidate);
+        if (value === homeBrew || value === sharedBrew) return;
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      });
+
+    try {
+      expect(resolveBrewExecutable({ homeDir, env: {} })).toBe(homeBrew);
+    } finally {
+      accessSyncMock.mockRestore();
     }
   });
 
@@ -55,5 +79,12 @@ describe("brew helpers", () => {
     expect(dirs).toContain("/home/linuxbrew/.linuxbrew/sbin");
     expect(dirs).toContain("/home/test/.linuxbrew/bin");
     expect(dirs).toContain("/home/test/.linuxbrew/sbin");
+
+    expect(dirs.indexOf("/home/test/.linuxbrew/bin")).toBeLessThan(
+      dirs.indexOf("/home/linuxbrew/.linuxbrew/bin"),
+    );
+    expect(dirs.indexOf("/home/test/.linuxbrew/sbin")).toBeLessThan(
+      dirs.indexOf("/home/linuxbrew/.linuxbrew/sbin"),
+    );
   });
 });

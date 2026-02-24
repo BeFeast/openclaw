@@ -30,13 +30,13 @@ export function resolveBrewPathDirs(opts?: {
     dirs.push(path.join(prefix, "bin"), path.join(prefix, "sbin"));
   }
 
-  // Linuxbrew defaults.
+  // Linuxbrew defaults (prefer the current user's home before shared installs).
+  dirs.push(path.join(homeDir, ".linuxbrew", "bin"));
+  dirs.push(path.join(homeDir, ".linuxbrew", "sbin"));
   dirs.push(
     "/home/linuxbrew/.linuxbrew/bin",
     "/home/linuxbrew/.linuxbrew/sbin",
   );
-  dirs.push(path.join(homeDir, ".linuxbrew", "bin"));
-  dirs.push(path.join(homeDir, ".linuxbrew", "sbin"));
 
   // macOS defaults (also used by some Linux setups).
   dirs.push("/opt/homebrew/bin", "/usr/local/bin");
@@ -59,9 +59,9 @@ export function resolveBrewExecutable(opts?: {
   const prefix = normalizePathValue(env.HOMEBREW_PREFIX);
   if (prefix) candidates.push(path.join(prefix, "bin", "brew"));
 
-  // Linuxbrew defaults.
-  candidates.push("/home/linuxbrew/.linuxbrew/bin/brew");
+  // Linuxbrew defaults (prefer the current user's home before shared installs).
   candidates.push(path.join(homeDir, ".linuxbrew", "bin", "brew"));
+  candidates.push("/home/linuxbrew/.linuxbrew/bin/brew");
 
   // macOS defaults.
   candidates.push("/opt/homebrew/bin/brew", "/usr/local/bin/brew");
