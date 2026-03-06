@@ -137,6 +137,8 @@ Docs: https://docs.openclaw.ai
 - Discord/voice messages: request upload slots with JSON fetch calls so voice message uploads no longer fail with content-type errors. Thanks @thewilloftheshadow.
 - Discord/voice decoder fallback: drop the native Opus dependency and use opusscript for voice decoding to avoid native-opus installs. Thanks @thewilloftheshadow.
 - Discord/auto presence health signal: add runtime availability-driven presence updates plus connected-state reporting to improve health monitoring and operator visibility. (#33277) Thanks @thewilloftheshadow.
+- HEIC image inputs: accept HEIC/HEIF `input_image` sources in Gateway HTTP APIs, normalize them to JPEG before provider delivery, and document the expanded default MIME allowlist. Thanks @vincentkoc.
+- Gateway/HEIC input follow-up: keep non-HEIC `input_image` MIME handling unchanged, make HEIC tests hermetic, and enforce chat-completions `maxTotalImageBytes` against post-normalization image payload size. Thanks @vincentkoc.
 - Telegram/draft-stream boundary stability: materialize DM draft previews at assistant-message/tool boundaries, serialize lane-boundary callbacks before final delivery, and scope preview cleanup to the active preview so multi-step Telegram streams no longer lose, overwrite, or leave stale preview bubbles. (#33842) Thanks @ngutman.
 - Telegram/DM draft finalization reliability: require verified final-text draft emission before treating preview finalization as delivered, and fall back to normal payload send when final draft delivery is not confirmed (preventing missing final responses and preserving media/button delivery). (#32118) Thanks @OpenCils.
 - Telegram/DM draft final delivery: materialize text-only `sendMessageDraft` previews into one permanent final message and skip duplicate final payload sends, while preserving fallback behavior when materialization fails. (#34318) Thanks @Brotherinlaw-13.
@@ -196,6 +198,13 @@ Docs: https://docs.openclaw.ai
 - Agents/gateway config guidance: stop exposing `config.schema` through the agent `gateway` tool, remove prompt/docs guidance that told agents to call it, and keep agents on `config.get` plus `config.patch`/`config.apply` for config changes. (#7382) thanks @kakuteki.
 - Agents/failover: classify periodic provider limit exhaustion text (for example `Weekly/Monthly Limit Exhausted`) as `rate_limit` while keeping explicit `402 Payment Required` variants in billing, so failover continues without misclassifying billing-wrapped quota errors. (#33813) thanks @zhouhe-xydt.
 - Mattermost/interactive button callbacks: allow external callback base URLs and stop requiring loopback-origin requests so button clicks work when Mattermost reaches the gateway over Tailscale, LAN, or a reverse proxy. (#37543) thanks @mukhtharcm.
+- Telegram/Discord media upload caps: make outbound uploads honor channel `mediaMaxMb` config, raise Telegram's default media cap to 100MB, and remove MIME fallback limits that kept some Telegram uploads at 16MB. Thanks @vincentkoc.
+- Skills/nano-banana-pro resolution override: respect explicit `--resolution` values during image editing and only auto-detect output size from input images when the flag is omitted. (#36880) Thanks @shuofengzhang and @vincentkoc.
+- Skills/openai-image-gen CLI validation: validate `--background` and `--style` inputs early, normalize supported values, and warn when those flags are ignored for incompatible models. (#36762) Thanks @shuofengzhang and @vincentkoc.
+- Skills/openai-image-gen output formats: validate `--output-format` values early, normalize aliases like `jpg -> jpeg`, and warn when the flag is ignored for incompatible models. (#36648) Thanks @shuofengzhang and @vincentkoc.
+- WhatsApp media upload caps: make outbound media sends and auto-replies honor `channels.whatsapp.mediaMaxMb` with per-account overrides so inbound and outbound limits use the same channel config. Thanks @vincentkoc.
+- Windows/Plugin install: when OpenClaw runs on Windows via Bun and `npm-cli.js` is not colocated with the runtime binary, fall back to `npm.cmd`/`npx.cmd` through the existing `cmd.exe` wrapper so `openclaw plugins install` no longer fails with `spawn EINVAL`. (#38056) Thanks @0xlin2023.
+- Telegram/send retry classification: retry grammY `Network request ... failed after N attempts` envelopes in send flows without reclassifying plain `Network request ... failed!` wrappers as transient, restoring the intended retry path while keeping broad send-context message matching tight. (#38056) Thanks @0xlin2023.
 
 ## 2026.3.2
 
