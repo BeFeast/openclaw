@@ -63,11 +63,12 @@ cat ~/.openclaw/openclaw.json
 - Health check + restart prompt.
 - Skills status summary (eligible/missing/blocked).
 - Config normalization for legacy values.
+- Centralized auth/config repair helpers for update-safe migrations (`doctor --fix` is the canonical write path for schema cleanup during updates).
 - OpenCode Zen provider override warnings (`models.providers.opencode`).
 - Legacy on-disk state migration (sessions/agent dir/WhatsApp auth).
 - State integrity and permissions checks (sessions, transcripts, state dir).
 - Config file permission checks (chmod 600) when running locally.
-- Model auth health: checks OAuth expiry, can refresh expiring tokens, and reports auth-profile cooldown/disabled states.
+- Model auth health: checks OAuth expiry, can refresh expiring tokens, repairs Anthropic OAuth profile-id drift, removes deprecated CLI auth profiles, and reports auth-profile cooldown/disabled states.
 - Extra workspace dir detection (`~/openclaw`).
 - Sandbox image repair when sandboxing is enabled.
 - Legacy service migration and extra gateway detection.
@@ -94,6 +95,10 @@ update (fetch/rebase/build) before running doctor.
 If the config contains legacy value shapes (for example `messages.ackReaction`
 without a channel-specific override), doctor normalizes them into the current
 schema.
+
+This normalization path is also what the update pipeline relies on: git updates
+run `openclaw doctor --non-interactive --fix` near the end of the update so the
+new build is paired with repaired config before restart.
 
 ### 2) Legacy config key migrations
 
@@ -133,7 +138,18 @@ Doctor warnings also include account-default guidance for multi-account channels
 - If two or more `channels.<channel>.accounts` entries are configured without `channels.<channel>.defaultAccount` or `accounts.default`, doctor warns that fallback routing can pick an unexpected account.
 - If `channels.<channel>.defaultAccount` is set to an unknown account ID, doctor warns and lists configured account IDs.
 
-### 2b) OpenCode Zen provider overrides
+### 2b) Auth/config dedup repairs
+
+Doctor now centralizes several auth/config cleanup repairs that used to be spread across separate flows:
+
+- Anthropic OAuth profile-id mismatch repair (`anthropic:default` → current profile id)
+- removal of deprecated external CLI auth profiles that are no longer supported
+- exec `safeBinProfiles` scaffolding for declared safe bins that have no explicit profile yet
+- SecretRef-aware allowlist repairs that inspect configured credentials without persisting resolved secrets back into config
+
+In practice, this means update-time schema repair and operator-invoked `doctor --fix` use the same write path and produce the same normalized config shape.
+
+### 2c) OpenCode Zen provider overrides
 
 If you’ve added `models.providers.opencode` (or `opencode-zen`) manually, it
 overrides the built-in OpenCode Zen catalog from `@mariozechner/pi-ai`. That can

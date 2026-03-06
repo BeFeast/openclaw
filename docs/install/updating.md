@@ -74,6 +74,7 @@ Note: on npm installs, the gateway logs an update hint on startup (checks the cu
 ### Core auto-updater (optional)
 
 Auto-updater is **off by default** and is a core Gateway feature (not a plugin).
+It reuses the same `openclaw update` implementation rather than a separate background-only pipeline.
 
 ```json
 {
@@ -95,6 +96,13 @@ Behavior:
 - `beta`: checks on `betaCheckIntervalHours` cadence (default: hourly) and applies when an update is available.
 - `dev`: no automatic apply; use manual `openclaw update`.
 
+Operationally, this means the nightly/background updater inherits the same semantics as manual updates:
+
+- same install-shape detection (git vs package install)
+- same git preflight/doctor/build pipeline
+- same plugin channel sync rules
+- same restart behavior when restart is enabled
+
 Use `openclaw update --dry-run` to preview update actions before enabling automation.
 
 Then:
@@ -112,31 +120,41 @@ Notes:
 
 ## Update (`openclaw update`)
 
-For **source installs** (git checkout), prefer:
+For **any install type**, prefer:
 
 ```bash
 openclaw update
 ```
 
-It runs a safe-ish update flow:
+Implemented behavior:
 
-- Requires a clean worktree.
-- Switches to the selected channel (tag or branch).
-- Fetches + rebases against the configured upstream (dev channel).
-- Installs deps, builds, builds the Control UI, and runs `openclaw doctor`.
-- Restarts the gateway by default (use `--no-restart` to skip).
+- If this is a git checkout at the OpenClaw package root, it runs the git pipeline.
+- If this is a global npm/pnpm/bun install, it runs the matching global package-manager update.
+- If the install shape cannot be identified safely, it stops and asks you to update explicitly via your package manager.
 
-If you installed via **npm/pnpm** (no git metadata), `openclaw update` will try to update via your package manager. If it can’t detect the install, use “Update (global install)” instead.
+For git installs, the pipeline is:
+
+- require a clean worktree
+- resolve channel (`dev` / `stable` / `beta`)
+- `dev`: fetch upstream, preflight up to 10 recent commits in a temp worktree (`install` + `build` + `lint`), then rebase to the newest passing commit
+- `stable` / `beta`: fetch tags and check out the resolved release tag detached
+- run deps install, `build`, `ui:build`
+- run `openclaw doctor --non-interactive --fix`
+- verify UI assets and rebuild once more if doctor invalidated them
+- sync plugins to the selected channel and update npm-installed plugins
+- restart the gateway by default (use `--no-restart` to skip)
 
 ## Update (Control UI / RPC)
 
-The Control UI has **Update & Restart** (RPC: `update.run`). It:
+The Control UI has **Update & Restart** (RPC: `update.run`). In the currently implemented architecture it is a thin UI/RPC wrapper around the same update machinery, not a separate pipeline.
 
-1. Runs the same source-update flow as `openclaw update` (git checkout only).
-2. Writes a restart sentinel with a structured report (stdout/stderr tail).
-3. Restarts the gateway and pings the last active session with the report.
+It:
 
-If the rebase fails, the gateway aborts and restarts without applying the update.
+1. Runs the same core update path as `openclaw update`.
+2. Produces restart/update diagnostics for the UI.
+3. Restarts the gateway and reports status back to the active UI session.
+
+For git installs that means the same fetch/preflight/rebase/build/doctor path. For package installs it follows the detected package-manager path.
 
 ## Update (from source)
 

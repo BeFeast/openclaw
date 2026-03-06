@@ -8,9 +8,9 @@ title: "update"
 
 # `openclaw update`
 
-Safely update OpenClaw and switch between stable/beta/dev channels.
+Update OpenClaw using the install method that is actually on disk, then optionally restart the Gateway service.
 
-If you installed via **npm/pnpm** (global install, no git metadata), updates happen via the package manager flow in [Updating](/install/updating).
+If you installed via **npm/pnpm** (global install, no git metadata), `openclaw update` uses the package-manager flow from [Updating](/install/updating). If you are on a git checkout, it uses the repo update pipeline.
 
 ## Usage
 
@@ -61,38 +61,69 @@ offers to create one.
 
 ## What it does
 
-When you switch channels explicitly (`--channel ...`), OpenClaw also keeps the
-install method aligned:
+`openclaw update` is the single update entrypoint used by:
 
-- `dev` → ensures a git checkout (default: `~/openclaw`, override with `OPENCLAW_GIT_DIR`),
-  updates it, and installs the global CLI from that checkout.
-- `stable`/`beta` → installs from npm using the matching dist-tag.
+- the CLI
+- the optional Gateway auto-updater (`update.auto`)
+- doctor's interactive "update before repair" prompt
 
-The Gateway core auto-updater (when enabled via config) reuses this same update path.
+At runtime it detects the real install shape and follows that path:
+
+- **git checkout at the OpenClaw package root** → run the git update pipeline
+- **global npm/pnpm/bun install** → run a global package update for the detected package manager
+- **unknown install shape** → stop and tell the operator to update via their package manager manually
+
+When you switch channels explicitly (`--channel ...`), OpenClaw also keeps the install method aligned:
+
+- `dev` → ensures a git checkout (default: `~/openclaw`, override with `OPENCLAW_GIT_DIR`), updates it, then reinstalls the global CLI from that checkout.
+- `stable` / `beta` → installs from npm using the matching dist-tag.
 
 ## Git checkout flow
 
 Channels:
 
-- `stable`: checkout the latest non-beta tag, then build + doctor.
-- `beta`: checkout the latest `-beta` tag, then build + doctor.
-- `dev`: checkout `main`, then fetch + rebase.
+- `stable`: fetch tags, resolve the latest non-beta tag, check it out detached, then build + doctor.
+- `beta`: fetch tags, resolve the newest beta tag (or the newest stable tag if it is newer), check it out detached, then build + doctor.
+- `dev`: stay on `main`, fetch upstream, preflight recent upstream commits, then rebase to the newest commit that passes preflight.
 
-High-level:
+Implemented flow:
 
-1. Requires a clean worktree (no uncommitted changes).
-2. Switches to the selected channel (tag or branch).
-3. Fetches upstream (dev only).
-4. Dev only: preflight lint + TypeScript build in a temp worktree; if the tip fails, walks back up to 10 commits to find the newest clean build.
-5. Rebases onto the selected commit (dev only).
-6. Installs deps (pnpm preferred; npm fallback).
-7. Builds + builds the Control UI.
-8. Runs `openclaw doctor` as the final “safe update” check.
-9. Syncs plugins to the active channel (dev uses bundled extensions; stable/beta uses npm) and updates npm-installed plugins.
+1. Verifies the directory is both a git checkout and the OpenClaw package root.
+2. Requires a clean worktree (`git status --porcelain -- :!dist/control-ui/`).
+3. For `dev`, verifies an upstream exists; if not, the update is skipped instead of guessing.
+4. For `dev`, fetches `--all --prune --tags`, then looks at up to 10 recent upstream commits.
+5. For `dev`, creates a temporary git worktree and runs **deps install + build + lint** against candidate commits until one passes; the real checkout rebases to that selected SHA.
+6. For `stable` / `beta`, fetches tags and checks out the resolved release tag in detached HEAD.
+7. Installs dependencies with the detected package manager.
+8. Runs `build` and `ui:build`.
+9. Runs `openclaw doctor --non-interactive --fix` under `OPENCLAW_UPDATE_IN_PROGRESS=1` so config migrations and unknown-key cleanup happen in the same pipeline without recursive update prompting.
+10. Verifies Control UI assets still exist; if doctor removed/staled them, it runs `ui:build` once more as post-doctor repair.
+11. After a successful core update, syncs plugins for the selected channel and updates npm-installed plugins.
+
+### Plugin/channel semantics after core update
+
+The implemented plugin phase is not just "update everything":
+
+- `dev` channel switches plugins with bundled local sources over to bundled path installs and ensures those local paths are present in `plugins.load.paths`.
+- `stable` / `beta` switch previously bundled-dev plugins back to npm installs when an npm spec exists.
+- npm-installed plugins are then updated in place from their recorded install specs.
+- Any plugin config changes caused by the sync are persisted back to `openclaw.json`.
 
 ## `--update` shorthand
 
 `openclaw --update` rewrites to `openclaw update` (useful for shells and launcher scripts).
+
+## Restart behavior
+
+If the Gateway service is currently loaded and restart is enabled, `openclaw update` prepares a **detached temporary restart script** before it starts changing files. That script is platform-specific:
+
+- Linux: `systemctl --user restart <unit>.service`
+- macOS: `launchctl kickstart -k`, with bootstrap fallback
+- Windows: scheduled-task restart with port-release polling
+
+This matters because the updating CLI may be part of the running service tree. The restart helper is written outside the install root and launched detached so restart still works even if the update replaces package files or terminates the parent process.
+
+If no detached helper can be prepared, OpenClaw falls back to the standard restart path.
 
 ## See also
 
